@@ -74,7 +74,7 @@ if game_pk:
                 if count in valid_counts:
                     pitch_data.append({
                         "Pitcher": play['matchup']['pitcher']['fullName'],
-                        "Side": "Left" if side == 'L' else "Right",
+                        "Side": "LHH" if side == 'L' else "RHH",
                         "Type": event.get('details', {}).get('type', {}).get('description', 'Unknown'),
                         "Prev": prev_p, 
                         "Velo": p_data.get('startSpeed', 0), 
@@ -92,14 +92,12 @@ if game_pk:
         # --- FILTERS (SIDEBAR) ---
         st.sidebar.header("Dugout Controls")
         
-        # 1. Pitcher Select
         pitcher_list = sorted(df['Pitcher'].unique())
         pitcher = st.sidebar.selectbox("Select Pitcher", pitcher_list)
         
-        # 2. Split Select
-        split = st.sidebar.radio("Batter Side", ["All", "Left", "Right"])
+        # Updated Labels Here
+        split = st.sidebar.radio("Batter Side", ["All", "LHH", "RHH"])
         
-        # 3. NEW: COUNT FILTER BUTTONS
         count_filter = st.sidebar.radio(
             "Filter by Strikes",
             ["All Counts", "Less Than 2K", "2K"],
@@ -107,7 +105,6 @@ if game_pk:
             horizontal=True
         )
         
-        # Apply Filters
         df_filtered = df[df['Pitcher'] == pitcher].copy()
         if split != "All":
             df_filtered = df_filtered[df_filtered['Side'] == split]
@@ -117,7 +114,7 @@ if game_pk:
         elif count_filter == "2K":
             df_filtered = df_filtered[df_filtered['Strikes'] == 2]
 
-        # --- LIVE TICKER (Always shows last 5, regardless of filters) ---
+        # --- LIVE TICKER ---
         st.subheader(f"🔥 Recent Sequence: {pitcher}")
         last_5 = df[df['Pitcher'] == pitcher].tail(5).iloc[::-1]
         t_cols = st.columns(5)
@@ -133,7 +130,6 @@ if game_pk:
                 st.write(f"### Usage: {count_filter} ({split})")
                 if not df_filtered.empty:
                     ct = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
-                    # Sort table by count order
                     ct = ct.reindex([c for c in valid_counts if c in ct.index])
                     st.table(ct.style.format("{:.0f}%"))
                 else:
@@ -146,7 +142,6 @@ if game_pk:
                     d = df_filtered[df_filtered['Type'] == pt]
                     fig.add_trace(go.Scatter(x=d['X'], y=d['Z'], mode='markers', name=pt, marker=dict(size=14, line=dict(width=1, color='Black'), opacity=0.8)))
                 
-                # Strike Zone Visuals
                 fig.add_shape(type="rect", x0=-0.85, y0=1.5, x1=0.85, y1=3.5, line=dict(color="White", width=4))
                 for x in [-0.28, 0.28]:
                     fig.add_shape(type="line", x0=x, y0=1.5, x1=x, y1=3.5, line=dict(color="rgba(255,255,255,0.3)", width=1, dash="dash"))
@@ -163,7 +158,7 @@ if game_pk:
                 st.plotly_chart(fig, use_container_width=True)
 
         with tab2:
-            st.write(f"### Sequence Matrix ({count_filter})")
+            st.write(f"### Sequence Matrix ({count_filter} vs {split})")
             seq_df = df_filtered[df_filtered['Prev'] != "None"]
             if not seq_df.empty:
                 st.table((pd.crosstab(seq_df['Prev'], seq_df['Type'], normalize='index') * 100).style.format("{:.1f}%"))
