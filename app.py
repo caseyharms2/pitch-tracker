@@ -147,4 +147,27 @@ if game_pk:
                     fig.add_trace(go.Scatter(x=d['X'], y=d['Z'], mode='markers', name=pt, marker=dict(size=14, line=dict(width=1, color='Black'), opacity=0.8)))
                 
                 # Strike Zone Visuals
-                fig.add_shape(type="rect", x0=-0.85, y0=1.5,
+                fig.add_shape(type="rect", x0=-0.85, y0=1.5, x1=0.85, y1=3.5, line=dict(color="White", width=4))
+                for x in [-0.28, 0.28]:
+                    fig.add_shape(type="line", x0=x, y0=1.5, x1=x, y1=3.5, line=dict(color="rgba(255,255,255,0.3)", width=1, dash="dash"))
+                for y in [2.16, 2.83]:
+                    fig.add_shape(type="line", x0=-0.85, y0=y, x1=0.85, y1=y, line=dict(color="rgba(255,255,255,0.3)", width=1, dash="dash"))
+                
+                fig.update_layout(
+                    template="plotly_dark",
+                    yaxis=dict(scaleanchor="x", scaleratio=1, range=[0, 5], visible=False),
+                    xaxis=dict(range=[-2.5, 2.5], visible=False),
+                    height=600, margin=dict(l=0,r=0,t=0,b=0),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+        with tab2:
+            st.write(f"### Sequence Matrix ({count_filter})")
+            seq_df = df_filtered[df_filtered['Prev'] != "None"]
+            if not seq_df.empty:
+                st.table((pd.crosstab(seq_df['Prev'], seq_df['Type'], normalize='index') * 100).style.format("{:.1f}%"))
+            
+            st.write("### Times Through Order")
+            df_filtered['Order'] = df_filtered['Batter_Num'].apply(lambda n: "1st" if n<=9 else "2nd" if n<=18 else "3rd+")
+            st.table((pd.crosstab(df_filtered['Order'], df_filtered['Type'], normalize='index') * 100).style.format("{:.0f}%"))
