@@ -16,8 +16,11 @@ st.title("⚾ Opposing Pitcher Tendencies")
 # --- CUSTOM PITCH COLORS ---
 PITCH_COLORS = {
     "4-Seam Fastball": "red",
+    "Four-Seam Fastball": "red",
+    "Fastball": "red",
     "Slider": "lightgreen",
     "Curveball": "blue",
+    "Knuckle Curve": "blue", # Grouped with Curveball
     "2-Seam Fastball": "orange",
     "Sinker": "orange",
     "Cutter": "forestgreen",
@@ -52,6 +55,8 @@ date_str = selected_date.strftime('%Y-%m-%d')
 sched_url = f"https://statsapi.mlb.com/api/v1/schedule?sportId={s_id}&teamId={t_id}&date={date_str}"
 
 game_pk = None
+opponent_id = None
+
 try:
     sched_data = requests.get(sched_url).json()
     dates = sched_data.get('dates', [])
@@ -62,11 +67,17 @@ try:
         game_options = {f"{g['teams']['away']['team']['name']} @ {g['teams']['home']['team']['name']} (ID: {g['gamePk']})": g['gamePk'] for g in games}
         selected_game_label = st.selectbox("Select Matchup", list(game_options.keys()))
         game_pk = game_options[selected_game_label]
+        
+        for g in games:
+            if g['gamePk'] == game_pk:
+                away_id = g['teams']['away']['team']['id']
+                home_id = g['teams']['home']['team']['id']
+                opponent_id = away_id if home_id == t_id else home_id
 except Exception:
     st.error("Connection error. Check stadium Wi-Fi.")
 
 # --- STEP 3: PULL LIVE DATA ---
-if game_pk:
+if game_pk and opponent_id:
     api_url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
     try:
         data = requests.get(api_url).json()
@@ -80,9 +91,10 @@ if game_pk:
     
     for play in all_plays:
         p_name = play['matchup']['pitcher']['fullName']
-        p_team = play['matchup'].get('pitcherTeam', {}).get('id')
-        
-        if p_team == t_id:
+        is_home_pitching = play.get('about', {}).get('isTopInning', True)
+        current_pitching_team_id = data.get('gameData', {}).get('teams', {}).get('home', {}).get('id') if is_home_pitching else data.get('gameData', {}).get('teams', {}).get('away', {}).get('id')
+
+        if current_pitching_team_id == t_id:
             continue
             
         if p_name not in pitcher_batter_counts:
@@ -90,9 +102,7 @@ if game_pk:
         pitcher_batter_counts[p_name] += 1
         b_num = pitcher_batter_counts[p_name]
         
-        if b_num <= 9: order = "1st"
-        elif b_num <= 18: order = "2nd"
-        else: order = "3rd+"
+        order = "1st" if b_num <= 9 else "2nd" if b_num <= 18 else "3rd+"
 
         prev_p = "None"
         side = play['matchup'].get('batSide', {}).get('code', 'U')
@@ -122,31 +132,22 @@ if game_pk:
     df = pd.DataFrame(pitch_data)
 
     if not df.empty:
-        # --- FILTERS (SIDEBAR) ---
+        # --- FILTERS ---
         st.sidebar.header("Dugout Controls")
         pitcher_list = sorted(df['Pitcher'].unique())
         pitcher = st.sidebar.selectbox("Select Opposing Pitcher", pitcher_list)
         split = st.sidebar.radio("Batter Side", ["All", "LHH", "RHH"])
-        
-        # RESTORED: Count Filter Buttons
-        count_filter = st.sidebar.radio(
-            "Filter by Strikes",
-            ["All Counts", "Less Than 2K", "2K"],
-            index=0,
-            horizontal=True
-        )
+        count_filter = st.sidebar.radio("Filter by Strikes", ["All Counts", "Less Than 2K", "2K"], horizontal=True)
         
         df_filtered = df[df['Pitcher'] == pitcher].copy()
-        
         if split != "All":
             df_filtered = df_filtered[df_filtered['Side'] == split]
-
         if count_filter == "Less Than 2K":
             df_filtered = df_filtered[df_filtered['Strikes'] < 2]
         elif count_filter == "2K":
             df_filtered = df_filtered[df_filtered['Strikes'] == 2]
 
-        # --- LIVE TICKER (Shows last 5 regardless of filters for situational awareness) ---
+        # --- LIVE TICKER ---
         st.subheader(f"🔥 Live Sequence: {pitcher}")
         last_5 = df[df['Pitcher'] == pitcher].tail(5).iloc[::-1]
         t_cols = st.columns(5)
@@ -162,49 +163,32 @@ if game_pk:
         with tab1:
             c1, c2 = st.columns([1, 1.5])
             with c1:
-                st.write(f"### Usage: {count_filter} ({split})")
-                if not df_filtered.empty:
-                    ct = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
-                    ct = ct.reindex([c for c in valid_counts if c in ct.index])
-                    st.table(ct.style.format("{:.0f}%"))
-                else:
-                    st.write("No pitches found for these filters.")
+                st.write(f"### Usage: {count_filter}")
+                ct = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
+                ct = ct.reindex([c for c in valid_counts if c in ct.index])
+                st.table(ct.style.format("{:.0f}%"))
             
             with c2:
                 order_view = st.radio("View Zone By Order:", ["All", "1st Time", "2nd Time", "3rd Time+"], horizontal=True)
                 df_zone = df_filtered.copy()
-                if order_view == "1st Time": df_zone = df_zone[df_zone['Order'] == "1st"]
-                elif order_view == "2nd Time": df_zone = df_zone[df_zone['Order'] == "2nd"]
-                elif order_view == "3rd Time+": df_zone = df_zone[df_zone['Order'] == "3rd+"]
+                if order_view != "All":
+                    map_order = {"1st Time": "1st", "2nd Time": "2nd", "3rd Time+": "3rd+"}
+                    df_zone = df_zone[df_zone['Order'] == map_order[order_view]]
 
                 fig = go.Figure()
                 for pt in df_zone['Type'].unique():
                     d = df_zone[df_zone['Type'] == pt]
-                    fig.add_trace(go.Scatter(
-                        x=d['X'], y=d['Z'], 
-                        mode='markers', 
-                        name=pt, 
-                        marker=dict(size=14, color=get_color(pt), line=dict(width=1, color='Black'), opacity=0.8)
-                    ))
+                    fig.add_trace(go.Scatter(x=d['X'], y=d['Z'], mode='markers', name=pt, marker=dict(size=14, color=get_color(pt), line=dict(width=1, color='Black'), opacity=0.8)))
                 
-                # Strike Zone
                 fig.add_shape(type="rect", x0=-0.85, y0=1.5, x1=0.85, y1=3.5, line=dict(color="White", width=4))
-                fig.update_layout(
-                    template="plotly_dark",
-                    yaxis=dict(scaleanchor="x", scaleratio=1, range=[0, 5], visible=False),
-                    xaxis=dict(range=[-2.5, 2.5], visible=False),
-                    height=500, margin=dict(l=0,r=0,t=0,b=0),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
+                fig.update_layout(template="plotly_dark", yaxis=dict(scaleanchor="x", scaleratio=1, range=[0, 5], visible=False), xaxis=dict(range=[-2.5, 2.5], visible=False), height=500, margin=dict(l=0,r=0,t=0,b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig, use_container_width=True)
 
         with tab2:
-            st.write(f"### Sequence Matrix ({count_filter})")
+            st.write("### Sequence Matrix")
             seq_df = df_filtered[df_filtered['Prev'] != "None"]
             if not seq_df.empty:
                 st.table((pd.crosstab(seq_df['Prev'], seq_df['Type'], normalize='index') * 100).style.format("{:.1f}%"))
             
             st.write("### Times Through Order Usage")
-            if not df_filtered.empty:
-                order_counts = pd.crosstab(df_filtered['Order'], df_filtered['Type'], normalize='index') * 100
-                st.table(order_counts.style.format("{:.0f}%"))
+            st.table((pd.crosstab(df_filtered['Order'], df_filtered['Type'], normalize='index') * 100).style.format("{:.0f}%"))
