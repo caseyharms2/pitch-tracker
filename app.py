@@ -64,6 +64,7 @@ if game_pk:
     for play in all_plays:
         batter_count_in_game += 1
         prev_p = "None"
+        # Gets the batter's side (L or R) from the API
         side = play['matchup'].get('batSide', {}).get('code', 'U')
         
         for event in play.get('playEvents', []):
@@ -74,7 +75,8 @@ if game_pk:
                 if count in valid_counts:
                     pitch_data.append({
                         "Pitcher": play['matchup']['pitcher']['fullName'],
-                        "Side": "Left" if side == 'L' else "Right",
+                        # CHANGE: This maps the 'L' code to 'LHH' and 'R' to 'RHH'
+                        "Side": "LHH" if side == 'L' else "RHH", 
                         "Type": event.get('details', {}).get('type', {}).get('description', 'Unknown'),
                         "Prev": prev_p, 
                         "Velo": p_data.get('startSpeed', 0), 
@@ -85,8 +87,6 @@ if game_pk:
                         "Batter_Num": batter_count_in_game
                     })
                 prev_p = event.get('details', {}).get('type', {}).get('description', 'Unknown')
-
-    df = pd.DataFrame(pitch_data)
 
     if not df.empty:
         # --- FILTERS (SIDEBAR) ---
