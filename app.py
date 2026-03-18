@@ -64,7 +64,6 @@ if game_pk:
     for play in all_plays:
         batter_count_in_game += 1
         prev_p = "None"
-        # Gets the batter's side (L or R) from the API
         side = play['matchup'].get('batSide', {}).get('code', 'U')
         
         for event in play.get('playEvents', []):
@@ -75,8 +74,7 @@ if game_pk:
                 if count in valid_counts:
                     pitch_data.append({
                         "Pitcher": play['matchup']['pitcher']['fullName'],
-                        # CHANGE: This maps the 'L' code to 'LHH' and 'R' to 'RHH'
-                        "Side": "LHH" if side == 'L' else "RHH", 
+                        "Side": "Left" if side == 'L' else "Right",
                         "Type": event.get('details', {}).get('type', {}).get('description', 'Unknown'),
                         "Prev": prev_p, 
                         "Velo": p_data.get('startSpeed', 0), 
@@ -88,6 +86,8 @@ if game_pk:
                     })
                 prev_p = event.get('details', {}).get('type', {}).get('description', 'Unknown')
 
+    df = pd.DataFrame(pitch_data)
+
     if not df.empty:
         # --- FILTERS (SIDEBAR) ---
         st.sidebar.header("Dugout Controls")
@@ -97,8 +97,7 @@ if game_pk:
         pitcher = st.sidebar.selectbox("Select Pitcher", pitcher_list)
         
         # 2. Split Select
-        # CHANGE: The options here must match the 'LHH' and 'RHH' we created above
-        split = st.sidebar.radio("Batter Side", ["All", "LHH", "RHH"])
+        split = st.sidebar.radio("Batter Side", ["All", "Left", "Right"])
         
         # 3. NEW: COUNT FILTER BUTTONS
         count_filter = st.sidebar.radio(
@@ -111,7 +110,6 @@ if game_pk:
         # Apply Filters
         df_filtered = df[df['Pitcher'] == pitcher].copy()
         if split != "All":
-            # This looks for 'LHH' or 'RHH' in your data
             df_filtered = df_filtered[df_filtered['Side'] == split]
         
         if count_filter == "Less Than 2K":
@@ -173,3 +171,4 @@ if game_pk:
             st.write("### Times Through Order")
             df_filtered['Order'] = df_filtered['Batter_Num'].apply(lambda n: "1st" if n<=9 else "2nd" if n<=18 else "3rd+")
             st.table((pd.crosstab(df_filtered['Order'], df_filtered['Type'], normalize='index') * 100).style.format("{:.0f}%"))
+
