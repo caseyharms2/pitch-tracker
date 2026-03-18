@@ -1,12 +1,16 @@
 import streamlit as st
 import requests
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
+from streamlit_autorefresh import st_autorefresh
 
-st.set_page_config(layout="wide", page_title="Dugout Pitch Tracker Pro")
+st.set_page_config(layout="wide", page_title="Dugout Command Center")
 
-st.title("⚾ Pro Pitch Strategy & Trends")
-url_input = st.text_input("Paste MLB/MiLB Gameday URL:", placeholder="https://www.mlb.com/gameday/745301")
+# --- AUTO-REFRESH (Every 30 seconds) ---
+st_autorefresh(interval=30 * 1000, key="datarefresh")
+
+st.title("⚾ Pro Strategy: Pitch Usage & Splits")
+url_input = st.text_input("Gameday URL:", placeholder="https://www.mlb.com/gameday/745301")
 
 def get_game_pk(url):
     try: return url.split('/')[-2] if url.endswith('/') else url.split('/')[-1]
@@ -16,72 +20,92 @@ if url_input:
     game_pk = get_game_pk(url_input)
     if game_pk:
         api_url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
-        data = requests.get(api_url).json()
-        all_plays = data.get('liveData', {}).get('plays', {}).get('allPlays', [])
+        try:
+            data = requests.get(api_url).json()
+            all_plays = data.get('liveData', {}).get('plays', {}).get('allPlays', [])
+        except:
+            st.error("Connection error. Waiting for next refresh...")
+            all_plays = []
         
         pitch_data = []
         batter_count_in_game = 0
+        valid_counts = ["0-0", "1-0", "2-0", "3-0", "0-1", "1-1", "2-1", "3-1", "0-2", "1-2", "2-2", "3-2"]
         
         for play in all_plays:
             batter_count_in_game += 1
-            prev_pitch_type = "None (First)"
+            prev_p = "None"
+            side = play['matchup'].get('batSide', {}).get('code', 'U')
             
             for event in play.get('playEvents', []):
                 if event.get('isPitch'):
-                    p_type = event.get('details', {}).get('type', {}).get('description', 'Unknown')
-                    coords = event.get('pitchData', {}).get('coordinates', {})
+                    p_data = event.get('pitchData', {})
+                    count = f"{event.get('count', {}).get('balls')}-{event.get('count', {}).get('strikes')}"
                     
-                    pitch_data.append({
-                        "Pitcher": play['matchup']['pitcher']['fullName'],
-                        "Type": p_type,
-                        "Prev_Type": prev_pitch_type,
-                        "Count": f"{event.get('count', {}).get('balls')}-{event.get('count', {}).get('strikes')}",
-                        "X": coords.get('pX'), "Z": coords.get('pZ'),
-                        "Inning": play['about']['inning'],
-                        "Batter_Num": batter_count_in_game
-                    })
-                    prev_pitch_type = p_type # Update for next pitch in sequence
+                    if count in valid_counts:
+                        pitch_data.append({
+                            "Pitcher": play['matchup']['pitcher']['fullName'],
+                            "Side": "Left" if side == 'L' else "Right",
+                            "Type": event.get('details', {}).get('type', {}).get('description', 'Unknown'),
+                            "Prev": prev_p,
+                            "Velo": p_data.get('startSpeed', 0),
+                            "Count": count,
+                            "X": p_data.get('coordinates', {}).get('pX'),
+                            "Z": p_data.get('coordinates', {}).get('pZ'),
+                            "Batter_Num": batter_count_in_game
+                        })
+                    prev_p = event.get('details', {}).get('type', {}).get('description', 'Unknown')
 
         df = pd.DataFrame(pitch_data)
 
         if not df.empty:
+            st.subheader("🔥 Recent Sequence (Auto-Updating)")
+            last_5 = df.tail(5).iloc[::-1]
+            t_cols = st.columns(5)
+            for i, (idx, row) in enumerate(last_5.iterrows()):
+                with t_cols[i]:
+                    st.metric(f"{row['Type']} ({row['Count']})", f"{row['Velo']} mph")
+
             st.sidebar.header("Dugout Controls")
             pitcher = st.sidebar.selectbox("Pitcher", df['Pitcher'].unique())
+            split = st.sidebar.radio("Batter Side", ["All", "Left", "Right"])
+            
             df_p = df[df['Pitcher'] == pitcher].copy()
+            if split != "All": df_p = df_p[df_p['Side'] == split]
 
-            # --- 1. TIMES THROUGH ORDER LOGIC ---
-            # Approximating: 1-9 (1st), 10-18 (2nd), 19+ (3rd)
-            def get_order(n):
-                if n <= 9: return "1st Time"
-                elif n <= 18: return "2nd Time"
-                else: return "3rd+ Time"
-            df_p['Order'] = df_p['Batter_Num'].apply(get_order)
-
-            # --- TABS FOR ORGANIZATION ---
-            tab1, tab2, tab3 = st.tabs(["📍 Locations", "📈 Sequences", "🕒 Thru Order"])
+            tab1, tab2 = st.tabs(["📊 Tendencies & Zone", "🔄 Sequences & Order"])
 
             with tab1:
-                col_a, col_b = st.columns([1, 2])
-                with col_a:
-                    st.write("### Usage by Count")
-                    count_table = pd.crosstab(df_p['Count'], df_p['Type'], normalize='index') * 100
-                    st.dataframe(count_table.style.format("{:.0f}%"))
-                with col_b:
-                    st.write("### Zone Chart")
-                    fig = px.scatter(df_p, x='X', y='Z', color='Type', range_x=[-2,2], range_y=[0,5])
-                    fig.add_shape(type="rect", x0=-0.85, y0=1.5, x1=0.85, y1=3.5, line=dict(color="White"))
-                    st.plotly_chart(fig)
+                c1, c2 = st.columns([1, 1.5])
+                with c1:
+                    st.write(f"### Usage by Count ({split})")
+                    ct = pd.crosstab(df_p['Count'], df_p['Type'], normalize='index') * 100
+                    ct = ct.reindex([c for c in valid_counts if c in ct.index])
+                    st.table(ct.style.format("{:.0f}%"))
+                
+                with c2:
+                    st.write("### Catcher's View")
+                    fig = go.Figure()
+                    for p_type in df_p['Type'].unique():
+                        d = df_p[df_p['Type'] == p_type]
+                        fig.add_trace(go.Scatter(x=d['X'], y=d['Z'], mode='markers', name=p_type, marker=dict(size=12)))
+                    
+                    # Outer Strike Zone Box
+                    fig.add_shape(type="rect", x0=-0.85, y0=1.5, x1=0.85, y1=3.5, line=dict(color="White", width=4))
+                    # Internal 9-Segment Grid Lines (Grey dashed lines)
+                    fig.add_shape(type="line", x0=-0.28, y0=1.5, x1=-0.28, y1=3.5, line=dict(color="Gray", width=1, dash="dash"))
+                    fig.add_shape(type="line", x0=0.28, y0=1.5, x1=0.28, y1=3.5, line=dict(color="Gray", width=1, dash="dash"))
+                    fig.add_shape(type="line", x0=-0.85, y0=2.16, x1=0.85, y1=2.16, line=dict(color="Gray", width=1, dash="dash"))
+                    fig.add_shape(type="line", x0=-0.85, y0=2.83, x1=0.85, y1=2.83, line=dict(color="Gray", width=1, dash="dash"))
+                    
+                    fig.update_layout(template="plotly_dark", xaxis=dict(range=[-2,2], visible=False), yaxis=dict(range=[0,5], visible=False), height=500, margin=dict(l=0,r=0,t=0,b=0))
+                    st.plotly_chart(fig, use_container_width=True)
 
             with tab2:
-                st.write("### Following Pitch Patterns")
-                st.info("What does he throw after a specific pitch? (Sequence Logic)")
-                # Filter out 'None' for sequences
-                seq_df = df_p[df_p['Prev_Type'] != "None (First)"]
-                seq_table = pd.crosstab(seq_df['Prev_Type'], seq_df['Type'], normalize='index') * 100
-                st.table(seq_table.style.format("{:.1f}%"))
-
-            with tab3:
-                st.write("### Usage: Times Through the Order")
-                order_table = pd.crosstab(df_p['Order'], df_p['Type'], normalize='index') * 100
-                st.bar_chart(order_table)
-                st.dataframe(order_table.style.format("{:.0f}%"))
+                st.write(f"### Sequence Matrix vs {split}HH")
+                seq_df = df_p[df_p['Prev'] != "None"]
+                if not seq_df.empty:
+                    st.table((pd.crosstab(seq_df['Prev'], seq_df['Type'], normalize='index') * 100).style.format("{:.1f}%"))
+                
+                st.write("### Times Through Order")
+                df_p['Order'] = df_p['Batter_Num'].apply(lambda n: "1st" if n<=9 else "2nd" if n<=18 else "3rd+")
+                st.table((pd.crosstab(df_p['Order'], df_p['Type'], normalize='index') * 100).style.format("{:.0f}%"))
