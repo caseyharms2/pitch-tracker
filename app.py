@@ -97,7 +97,8 @@ if game_pk:
         pitcher = st.sidebar.selectbox("Select Pitcher", pitcher_list)
         
         # 2. Split Select
-        split = st.sidebar.radio("Batter Side", ["All", "Left", "Right"])
+        # CHANGE: The options here must match the 'LHH' and 'RHH' we created above
+        split = st.sidebar.radio("Batter Side", ["All", "LHH", "RHH"])
         
         # 3. NEW: COUNT FILTER BUTTONS
         count_filter = st.sidebar.radio(
@@ -110,6 +111,7 @@ if game_pk:
         # Apply Filters
         df_filtered = df[df['Pitcher'] == pitcher].copy()
         if split != "All":
+            # This looks for 'LHH' or 'RHH' in your data
             df_filtered = df_filtered[df_filtered['Side'] == split]
         
         if count_filter == "Less Than 2K":
