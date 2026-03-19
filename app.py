@@ -180,44 +180,48 @@ if game_pk and opponent_id:
                         if any(x in p for x in ["changeup", "splitter", "forkball", "screwball"]): return 3
                         return 4
 
-                    # 2. Generate Frequency (Counts) with Row Totals
+                    # 2. Generate Data
                     df_counts = pd.crosstab(df_filtered['Count'], df_filtered['Type'], margins=True, margins_name="Total")
-                    
-                    # 3. Generate Percentages (Normalize by row)
-                    # Note: We don't include the 'Total' column in the normalization calculation
                     df_perc = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
                     
-                    # 4. Sort Columns (excluding the 'Total' column for now)
+                    # 3. Sort Columns & Define Rows
                     pitch_cols = [c for c in df_counts.columns if c != "Total"]
                     sorted_pitch_cols = sorted(pitch_cols, key=pitch_sort_priority)
-                    
-                    # 5. Build the Final Formatted Table
-                    formatted_data = []
-                    # Standard count order for rows
                     display_rows = [c for c in valid_counts if c in df_counts.index]
                     if "Total" in df_counts.index: display_rows.append("Total")
 
+                    # 4. Build Formatted DataFrame
+                    formatted_rows = []
                     for count_row in display_rows:
                         row_display = {}
                         for pitch_col in sorted_pitch_cols:
                             count_val = df_counts.loc[count_row, pitch_col]
-                            # Calculate % for the specific cell (Total row uses its own math)
                             if count_row == "Total":
-                                total_pitches = df_counts.loc["Total", "Total"]
-                                perc_val = (count_val / total_pitches * 100) if total_pitches > 0 else 0
+                                total_overall = df_counts.loc["Total", "Total"]
+                                perc_val = (count_val / total_overall * 100) if total_overall > 0 else 0
                             else:
                                 perc_val = df_perc.loc[count_row, pitch_col] if pitch_col in df_perc.columns else 0
                             
-                            # Format as: 40% (12)
                             row_display[pitch_col] = f"{perc_val:.0f}% ({count_val})"
-                        
-                        # Add the Row Total column at the end
-                        row_display["Total Pitches"] = int(df_counts.loc[count_row, "Total"])
-                        formatted_data.append(row_display)
+                        formatted_rows.append(row_display)
 
-                    # 6. Display as DataFrame
-                    final_df = pd.DataFrame(formatted_data, index=display_rows)
-                    st.table(final_df)
+                    final_df = pd.DataFrame(formatted_rows, index=display_rows)
+
+                    # 5. Apply Red Styling to the Total Row
+                    def highlight_total_row(s):
+                        return ['background-color: #8b0000; color: white; font-weight: bold' if s.name == "Total" else '' for _ in s]
+
+                    styled_df = final_df.style.apply(highlight_total_row, axis=1)
+
+                    # 6. Display with Column Config to lock width (prevents wrapping)
+                    # We create a config for every column to ensure enough space for "100% (99)"
+                    col_config = {col: st.column_config.Column(width="medium") for col in final_df.columns}
+                    
+                    st.dataframe(
+                        styled_df, 
+                        use_container_width=True, 
+                        column_config=col_config
+                    )
                 else:
                     st.write("No pitches found for this selection.")
             
