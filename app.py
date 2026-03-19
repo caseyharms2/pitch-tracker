@@ -242,9 +242,38 @@ if game_pk and opponent_id:
                     # Apply styling cell-by-cell
                     styled_df = final_df.style.apply(lambda x: [apply_heat_map(v, x.name, c) for v, c in zip(x, final_df.columns)], axis=1)
 
+                  # Display the Styled Table
                     st.table(styled_df)
+
+                    # --- ADD THE LEGEND BELOW ---
+                    st.markdown("---")
+                    l_col1, l_col2, l_col3 = st.columns(3)
+                    
+                    with l_col1:
+                        st.markdown(
+                            "<div style='background-color: #8b0000; padding: 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>"
+                            "🔴 HIGH USAGE<br><span style='font-weight: normal; font-size: 0.8em;'>+0.5 STDEV vs League Avg</span>"
+                            "</div>", 
+                            unsafe_allow_html=True
+                        )
+                    
+                    with l_col2:
+                        st.markdown(
+                            "<div style='background-color: #1e1e1e; padding: 10px; border-radius: 5px; border: 1px solid #555; text-align: center; color: white; font-weight: bold;'>"
+                            "⚪ STANDARD<br><span style='font-weight: normal; font-size: 0.8em;'>Within League Norms</span>"
+                            "</div>", 
+                            unsafe_allow_html=True
+                        )
+                    
+                    with l_col3:
+                        st.markdown(
+                            "<div style='background-color: #00008b; padding: 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>"
+                            "🔵 LOW USAGE<br><span style='font-weight: normal; font-size: 0.8em;'>-0.5 STDEV vs League Avg</span>"
+                            "</div>", 
+                            unsafe_allow_html=True
+                        )
                 else:
-                    st.write("No pitches found.")
+                    st.write("No pitches found for this selection.")
             
             with c2:
                 order_view = st.radio("View Zone By Order:", ["All", "1st Time", "2nd Time", "3rd Time+"], horizontal=True)
