@@ -167,13 +167,13 @@ if game_pk and opponent_id:
         tab1, tab2 = st.tabs(["📊 Tendencies & Zone", "🔄 Sequences & Order"])
 
         with tab1:
-            c1, c2 = st.columns([1, 1.5])
-           with c1:
+            c1, c2 = st.columns([1.2, 1])  # Slightly wider c1 for the no-scroll table
+            
+            with c1:
                 st.write(f"### Usage vs League Average: {count_filter}")
                 
                 if not df_filtered.empty:
-                    # 1. League Benchmarks (Fastball, Breaking, Offspeed)
-                    # Using a 5% threshold for 0.5 Standard Deviation mapping
+                    # 1. League Benchmarks
                     benchmarks = {
                         "0-0": {"FB": 55, "BR": 30, "OS": 15}, "1-0": {"FB": 60, "BR": 25, "OS": 15},
                         "2-0": {"FB": 75, "BR": 15, "OS": 10}, "3-0": {"FB": 95, "BR": 3, "OS": 2},
@@ -181,10 +181,9 @@ if game_pk and opponent_id:
                         "2-1": {"FB": 65, "BR": 20, "OS": 15}, "3-1": {"FB": 85, "BR": 10, "OS": 5},
                         "0-2": {"FB": 35, "BR": 50, "OS": 15}, "1-2": {"FB": 38, "BR": 45, "OS": 17},
                         "2-2": {"FB": 42, "BR": 40, "OS": 18}, "3-2": {"FB": 55, "BR": 25, "OS": 20},
-                        "Total": {"FB": 52, "BR": 32, "OS": 16} # Season baseline
+                        "Total": {"FB": 52, "BR": 32, "OS": 16}
                     }
 
-                    # 2. Sorting & Grouping Logic
                     def get_group(p_name):
                         p = p_name.lower()
                         if any(x in p for x in ["fastball", "sinker", "cutter"]): return "FB"
@@ -192,10 +191,10 @@ if game_pk and opponent_id:
                         if any(x in p for x in ["changeup", "splitter", "forkball"]): return "OS"
                         return "OTHER"
 
-                    # 3. CSS for no-scroll
+                    # 2. CSS for no-scroll & Full Width
                     st.markdown("<style>table { width: 100% !important; } th, td { white-space: nowrap !important; text-align: center !important; }</style>", unsafe_allow_html=True)
 
-                    # 4. Generate Data
+                    # 3. Generate Data
                     df_counts = pd.crosstab(df_filtered['Count'], df_filtered['Type'], margins=True, margins_name="Total")
                     df_perc = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
                     
@@ -208,7 +207,7 @@ if game_pk and opponent_id:
                     display_rows = [c for c in valid_counts if c in df_counts.index]
                     if "Total" in df_counts.index: display_rows.append("Total")
 
-                    # 5. Build Dataframe
+                    # 4. Build Formatted Data
                     formatted_rows = []
                     for count_row in display_rows:
                         row_display = {}
@@ -220,60 +219,38 @@ if game_pk and opponent_id:
 
                     final_df = pd.DataFrame(formatted_rows, index=display_rows)
 
-                    # 6. HEAT MAP STYLING FUNCTION
+                    # 5. HEAT MAP STYLING
                     def apply_heat_map(val, count_label, pitch_name):
-                        if count_label not in benchmarks: return ""
+                        if count_label == "Total":
+                            return 'background-color: #8b0000; color: white; font-weight: bold;'
                         
-                        # Extract percentage from string "40% (12)"
                         try:
                             actual_perc = float(val.split('%')[0])
                             group = get_group(pitch_name)
-                            avg = benchmarks[count_label].get(group, 0)
-                            
-                            threshold = 5 # 0.5 Standard Deviation
+                            avg = benchmarks.get(count_label, {}).get(group, 0)
+                            threshold = 5 
                             
                             if actual_perc > (avg + threshold):
-                                return 'background-color: #8b0000; color: white;' # Heavy Usage (Red)
+                                return 'background-color: #8b0000; color: white;' 
                             elif actual_perc < (avg - threshold):
-                                return 'background-color: #00008b; color: white;' # Low Usage (Blue)
+                                return 'background-color: #00008b; color: white;' 
                         except: pass
-                        return 'background-color: #1e1e1e; color: white;' # Standard (Dark/White)
+                        return 'color: white;'
 
-                    # Apply styling cell-by-cell
                     styled_df = final_df.style.apply(lambda x: [apply_heat_map(v, x.name, c) for v, c in zip(x, final_df.columns)], axis=1)
-
-                  # Display the Styled Table
                     st.table(styled_df)
 
-                    # --- ADD THE LEGEND BELOW ---
+                    # 6. Legend
                     st.markdown("---")
                     l_col1, l_col2, l_col3 = st.columns(3)
-                    
                     with l_col1:
-                        st.markdown(
-                            "<div style='background-color: #8b0000; padding: 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>"
-                            "🔴 HIGH USAGE<br><span style='font-weight: normal; font-size: 0.8em;'>+0.5 STDEV vs League Avg</span>"
-                            "</div>", 
-                            unsafe_allow_html=True
-                        )
-                    
+                        st.markdown("<div style='background-color: #8b0000; padding: 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>🔴 HIGH USAGE<br><span style='font-weight: normal; font-size: 0.8em;'>+5% vs League Avg</span></div>", unsafe_allow_html=True)
                     with l_col2:
-                        st.markdown(
-                            "<div style='background-color: #1e1e1e; padding: 10px; border-radius: 5px; border: 1px solid #555; text-align: center; color: white; font-weight: bold;'>"
-                            "⚪ STANDARD<br><span style='font-weight: normal; font-size: 0.8em;'>Within League Norms</span>"
-                            "</div>", 
-                            unsafe_allow_html=True
-                        )
-                    
+                        st.markdown("<div style='background-color: #1e1e1e; padding: 10px; border-radius: 5px; border: 1px solid #555; text-align: center; color: white; font-weight: bold;'>⚪ STANDARD<br><span style='font-weight: normal; font-size: 0.8em;'>Within League Norms</span></div>", unsafe_allow_html=True)
                     with l_col3:
-                        st.markdown(
-                            "<div style='background-color: #00008b; padding: 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>"
-                            "🔵 LOW USAGE<br><span style='font-weight: normal; font-size: 0.8em;'>-0.5 STDEV vs League Avg</span>"
-                            "</div>", 
-                            unsafe_allow_html=True
-                        )
+                        st.markdown("<div style='background-color: #00008b; padding: 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>🔵 LOW USAGE<br><span style='font-weight: normal; font-size: 0.8em;'>-5% vs League Avg</span></div>", unsafe_allow_html=True)
                 else:
-                    st.write("No pitches found for this selection.")
+                    st.write("No pitches found.")
             
             with c2:
                 order_view = st.radio("View Zone By Order:", ["All", "1st Time", "2nd Time", "3rd Time+"], horizontal=True)
