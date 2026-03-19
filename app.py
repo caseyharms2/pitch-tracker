@@ -170,9 +170,32 @@ if game_pk and opponent_id:
             c1, c2 = st.columns([1, 1.5])
             with c1:
                 st.write(f"### Usage: {count_filter}")
-                ct = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
-                ct = ct.reindex([c for c in valid_counts if c in ct.index])
-                st.table(ct.style.format("{:.0f}%"))
+                
+                if not df_filtered.empty:
+                    # 1. Define the sorting priority
+                    def pitch_sort_priority(p_name):
+                        p = p_name.lower()
+                        # Fastballs (Priority 1)
+                        if any(x in p for x in ["fastball", "sinker", "cutter"]): return 1
+                        # Breaking Balls (Priority 2)
+                        if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]): return 2
+                        # Offspeed / Changeups (Priority 3)
+                        if any(x in p for x in ["changeup", "splitter", "forkball", "screwball"]): return 3
+                        return 4 # Everything else (knuckleball, etc.)
+
+                    # 2. Create the Crosstab
+                    ct = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
+                    
+                    # 3. Sort columns based on our priority function
+                    sorted_columns = sorted(ct.columns, key=pitch_sort_priority)
+                    ct = ct[sorted_columns]
+                    
+                    # 4. Reindex Rows to standard count order
+                    ct = ct.reindex([c for c in valid_counts if c in ct.index])
+                    
+                    st.table(ct.style.format("{:.0f}%"))
+                else:
+                    st.write("No pitches found for this selection.")
             
             with c2:
                 order_view = st.radio("View Zone By Order:", ["All", "1st Time", "2nd Time", "3rd Time+"], horizontal=True)
