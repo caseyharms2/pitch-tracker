@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Set page to wide for dugout tablet viewing
 st.set_page_config(layout="wide", page_title="Opposing Pitcher Tendencies")
@@ -20,7 +20,7 @@ PITCH_COLORS = {
     "Fastball": "red",
     "Slider": "lightgreen",
     "Curveball": "blue",
-    "Knuckle Curve": "blue", # Grouped with Curveball
+    "Knuckle Curve": "blue",
     "2-Seam Fastball": "orange",
     "Sinker": "orange",
     "Cutter": "forestgreen",
@@ -48,7 +48,9 @@ with col1:
     s_id = org_teams[team_choice]["sport"]
 
 with col2:
-    selected_date = st.date_input("Select Date", datetime.today())
+    # BUG FIX: Adjust UTC to local "today" (subtracting 5 hours for EST/EDT safety)
+    local_today = datetime.utcnow() - timedelta(hours=5)
+    selected_date = st.date_input("Select Date", local_today)
 
 # --- STEP 2: FETCH GAME PK ---
 date_str = selected_date.strftime('%Y-%m-%d')
@@ -91,16 +93,20 @@ if game_pk and opponent_id:
     
     for play in all_plays:
         p_name = play['matchup']['pitcher']['fullName']
+        # FETCH HANDEDNESS (L or R)
+        p_hand_code = play['matchup'].get('pitchHand', {}).get('code', 'U')
+        p_display_name = f"{p_name} ({p_hand_code}HP)"
+        
         is_home_pitching = play.get('about', {}).get('isTopInning', True)
         current_pitching_team_id = data.get('gameData', {}).get('teams', {}).get('home', {}).get('id') if is_home_pitching else data.get('gameData', {}).get('teams', {}).get('away', {}).get('id')
 
         if current_pitching_team_id == t_id:
             continue
             
-        if p_name not in pitcher_batter_counts:
-            pitcher_batter_counts[p_name] = 0
-        pitcher_batter_counts[p_name] += 1
-        b_num = pitcher_batter_counts[p_name]
+        if p_display_name not in pitcher_batter_counts:
+            pitcher_batter_counts[p_display_name] = 0
+        pitcher_batter_counts[p_display_name] += 1
+        b_num = pitcher_batter_counts[p_display_name]
         
         order = "1st" if b_num <= 9 else "2nd" if b_num <= 18 else "3rd+"
 
@@ -116,7 +122,7 @@ if game_pk and opponent_id:
                 
                 if count in valid_counts:
                     pitch_data.append({
-                        "Pitcher": p_name,
+                        "Pitcher": p_display_name,
                         "Side": "LHH" if side == 'L' else "RHH", 
                         "Type": p_type,
                         "Prev": prev_p, 
