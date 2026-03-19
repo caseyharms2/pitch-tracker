@@ -168,63 +168,83 @@ if game_pk and opponent_id:
 
         with tab1:
             c1, c2 = st.columns([1, 1.5])
-            with c1:
-                st.write(f"### Usage: {count_filter}")
+           with c1:
+                st.write(f"### Usage vs League Average: {count_filter}")
                 
                 if not df_filtered.empty:
-                    # 1. CSS Hack: Force table to not wrap text and use full width
-                    st.markdown("""
-                        <style>
-                        table { width: 100% !important; }
-                        th, td { white-space: nowrap !important; text-align: center !important; }
-                        </style>
-                    """, unsafe_allow_html=True)
+                    # 1. League Benchmarks (Fastball, Breaking, Offspeed)
+                    # Using a 5% threshold for 0.5 Standard Deviation mapping
+                    benchmarks = {
+                        "0-0": {"FB": 55, "BR": 30, "OS": 15}, "1-0": {"FB": 60, "BR": 25, "OS": 15},
+                        "2-0": {"FB": 75, "BR": 15, "OS": 10}, "3-0": {"FB": 95, "BR": 3, "OS": 2},
+                        "0-1": {"FB": 45, "BR": 40, "OS": 15}, "1-1": {"FB": 50, "BR": 30, "OS": 20},
+                        "2-1": {"FB": 65, "BR": 20, "OS": 15}, "3-1": {"FB": 85, "BR": 10, "OS": 5},
+                        "0-2": {"FB": 35, "BR": 50, "OS": 15}, "1-2": {"FB": 38, "BR": 45, "OS": 17},
+                        "2-2": {"FB": 42, "BR": 40, "OS": 18}, "3-2": {"FB": 55, "BR": 25, "OS": 20},
+                        "Total": {"FB": 52, "BR": 32, "OS": 16} # Season baseline
+                    }
 
-                    # 2. Sorting Priority Function
-                    def pitch_sort_priority(p_name):
+                    # 2. Sorting & Grouping Logic
+                    def get_group(p_name):
                         p = p_name.lower()
-                        if any(x in p for x in ["fastball", "sinker", "cutter"]): return 1
-                        if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]): return 2
-                        if any(x in p for x in ["changeup", "splitter", "forkball", "screwball"]): return 3
-                        return 4
+                        if any(x in p for x in ["fastball", "sinker", "cutter"]): return "FB"
+                        if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]): return "BR"
+                        if any(x in p for x in ["changeup", "splitter", "forkball"]): return "OS"
+                        return "OTHER"
 
-                    # 3. Generate Data
+                    # 3. CSS for no-scroll
+                    st.markdown("<style>table { width: 100% !important; } th, td { white-space: nowrap !important; text-align: center !important; }</style>", unsafe_allow_html=True)
+
+                    # 4. Generate Data
                     df_counts = pd.crosstab(df_filtered['Count'], df_filtered['Type'], margins=True, margins_name="Total")
                     df_perc = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
                     
-                    # 4. Sort Columns & Define Rows
                     pitch_cols = [c for c in df_counts.columns if c != "Total"]
+                    def pitch_sort_priority(p_name):
+                        grp = get_group(p_name)
+                        return 1 if grp == "FB" else 2 if grp == "BR" else 3 if grp == "OS" else 4
+                    
                     sorted_pitch_cols = sorted(pitch_cols, key=pitch_sort_priority)
                     display_rows = [c for c in valid_counts if c in df_counts.index]
                     if "Total" in df_counts.index: display_rows.append("Total")
 
-                    # 5. Build Formatted DataFrame
+                    # 5. Build Dataframe
                     formatted_rows = []
                     for count_row in display_rows:
                         row_display = {}
                         for pitch_col in sorted_pitch_cols:
                             count_val = df_counts.loc[count_row, pitch_col]
-                            if count_row == "Total":
-                                total_overall = df_counts.loc["Total", "Total"]
-                                perc_val = (count_val / total_overall * 100) if total_overall > 0 else 0
-                            else:
-                                perc_val = df_perc.loc[count_row, pitch_col] if pitch_col in df_perc.columns else 0
-                            
+                            perc_val = df_perc.loc[count_row, pitch_col] if count_row != "Total" else (count_val / df_counts.loc["Total", "Total"] * 100)
                             row_display[pitch_col] = f"{perc_val:.0f}% ({count_val})"
                         formatted_rows.append(row_display)
 
                     final_df = pd.DataFrame(formatted_rows, index=display_rows)
 
-                    # 6. Apply Red Styling to the Total Row
-                    def highlight_total_row(s):
-                        return ['background-color: #8b0000; color: white; font-weight: bold' if s.name == "Total" else '' for _ in s]
+                    # 6. HEAT MAP STYLING FUNCTION
+                    def apply_heat_map(val, count_label, pitch_name):
+                        if count_label not in benchmarks: return ""
+                        
+                        # Extract percentage from string "40% (12)"
+                        try:
+                            actual_perc = float(val.split('%')[0])
+                            group = get_group(pitch_name)
+                            avg = benchmarks[count_label].get(group, 0)
+                            
+                            threshold = 5 # 0.5 Standard Deviation
+                            
+                            if actual_perc > (avg + threshold):
+                                return 'background-color: #8b0000; color: white;' # Heavy Usage (Red)
+                            elif actual_perc < (avg - threshold):
+                                return 'background-color: #00008b; color: white;' # Low Usage (Blue)
+                        except: pass
+                        return 'background-color: #1e1e1e; color: white;' # Standard (Dark/White)
 
-                    styled_df = final_df.style.apply(highlight_total_row, axis=1)
+                    # Apply styling cell-by-cell
+                    styled_df = final_df.style.apply(lambda x: [apply_heat_map(v, x.name, c) for v, c in zip(x, final_df.columns)], axis=1)
 
-                    # 7. Use st.table (Static, no scrollbars)
                     st.table(styled_df)
                 else:
-                    st.write("No pitches found for this selection.")
+                    st.write("No pitches found.")
             
             with c2:
                 order_view = st.radio("View Zone By Order:", ["All", "1st Time", "2nd Time", "3rd Time+"], horizontal=True)
