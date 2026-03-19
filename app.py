@@ -172,7 +172,15 @@ if game_pk and opponent_id:
                 st.write(f"### Usage: {count_filter}")
                 
                 if not df_filtered.empty:
-                    # 1. Sorting Priority Function
+                    # 1. CSS Hack: Force table to not wrap text and use full width
+                    st.markdown("""
+                        <style>
+                        table { width: 100% !important; }
+                        th, td { white-space: nowrap !important; text-align: center !important; }
+                        </style>
+                    """, unsafe_allow_html=True)
+
+                    # 2. Sorting Priority Function
                     def pitch_sort_priority(p_name):
                         p = p_name.lower()
                         if any(x in p for x in ["fastball", "sinker", "cutter"]): return 1
@@ -180,17 +188,17 @@ if game_pk and opponent_id:
                         if any(x in p for x in ["changeup", "splitter", "forkball", "screwball"]): return 3
                         return 4
 
-                    # 2. Generate Data
+                    # 3. Generate Data
                     df_counts = pd.crosstab(df_filtered['Count'], df_filtered['Type'], margins=True, margins_name="Total")
                     df_perc = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
                     
-                    # 3. Sort Columns & Define Rows
+                    # 4. Sort Columns & Define Rows
                     pitch_cols = [c for c in df_counts.columns if c != "Total"]
                     sorted_pitch_cols = sorted(pitch_cols, key=pitch_sort_priority)
                     display_rows = [c for c in valid_counts if c in df_counts.index]
                     if "Total" in df_counts.index: display_rows.append("Total")
 
-                    # 4. Build Formatted DataFrame
+                    # 5. Build Formatted DataFrame
                     formatted_rows = []
                     for count_row in display_rows:
                         row_display = {}
@@ -207,21 +215,14 @@ if game_pk and opponent_id:
 
                     final_df = pd.DataFrame(formatted_rows, index=display_rows)
 
-                    # 5. Apply Red Styling to the Total Row
+                    # 6. Apply Red Styling to the Total Row
                     def highlight_total_row(s):
                         return ['background-color: #8b0000; color: white; font-weight: bold' if s.name == "Total" else '' for _ in s]
 
                     styled_df = final_df.style.apply(highlight_total_row, axis=1)
 
-                    # 6. Display with Column Config to lock width (prevents wrapping)
-                    # We create a config for every column to ensure enough space for "100% (99)"
-                    col_config = {col: st.column_config.Column(width="medium") for col in final_df.columns}
-                    
-                    st.dataframe(
-                        styled_df, 
-                        use_container_width=True, 
-                        column_config=col_config
-                    )
+                    # 7. Use st.table (Static, no scrollbars)
+                    st.table(styled_df)
                 else:
                     st.write("No pitches found for this selection.")
             
