@@ -172,28 +172,52 @@ if game_pk and opponent_id:
                 st.write(f"### Usage: {count_filter}")
                 
                 if not df_filtered.empty:
-                    # 1. Define the sorting priority
+                    # 1. Sorting Priority Function
                     def pitch_sort_priority(p_name):
                         p = p_name.lower()
-                        # Fastballs (Priority 1)
                         if any(x in p for x in ["fastball", "sinker", "cutter"]): return 1
-                        # Breaking Balls (Priority 2)
                         if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]): return 2
-                        # Offspeed / Changeups (Priority 3)
                         if any(x in p for x in ["changeup", "splitter", "forkball", "screwball"]): return 3
-                        return 4 # Everything else (knuckleball, etc.)
+                        return 4
 
-                    # 2. Create the Crosstab
-                    ct = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
+                    # 2. Generate Frequency (Counts) with Row Totals
+                    df_counts = pd.crosstab(df_filtered['Count'], df_filtered['Type'], margins=True, margins_name="Total")
                     
-                    # 3. Sort columns based on our priority function
-                    sorted_columns = sorted(ct.columns, key=pitch_sort_priority)
-                    ct = ct[sorted_columns]
+                    # 3. Generate Percentages (Normalize by row)
+                    # Note: We don't include the 'Total' column in the normalization calculation
+                    df_perc = pd.crosstab(df_filtered['Count'], df_filtered['Type'], normalize='index') * 100
                     
-                    # 4. Reindex Rows to standard count order
-                    ct = ct.reindex([c for c in valid_counts if c in ct.index])
+                    # 4. Sort Columns (excluding the 'Total' column for now)
+                    pitch_cols = [c for c in df_counts.columns if c != "Total"]
+                    sorted_pitch_cols = sorted(pitch_cols, key=pitch_sort_priority)
                     
-                    st.table(ct.style.format("{:.0f}%"))
+                    # 5. Build the Final Formatted Table
+                    formatted_data = []
+                    # Standard count order for rows
+                    display_rows = [c for c in valid_counts if c in df_counts.index]
+                    if "Total" in df_counts.index: display_rows.append("Total")
+
+                    for count_row in display_rows:
+                        row_display = {}
+                        for pitch_col in sorted_pitch_cols:
+                            count_val = df_counts.loc[count_row, pitch_col]
+                            # Calculate % for the specific cell (Total row uses its own math)
+                            if count_row == "Total":
+                                total_pitches = df_counts.loc["Total", "Total"]
+                                perc_val = (count_val / total_pitches * 100) if total_pitches > 0 else 0
+                            else:
+                                perc_val = df_perc.loc[count_row, pitch_col] if pitch_col in df_perc.columns else 0
+                            
+                            # Format as: 40% (12)
+                            row_display[pitch_col] = f"{perc_val:.0f}% ({count_val})"
+                        
+                        # Add the Row Total column at the end
+                        row_display["Total Pitches"] = int(df_counts.loc[count_row, "Total"])
+                        formatted_data.append(row_display)
+
+                    # 6. Display as DataFrame
+                    final_df = pd.DataFrame(formatted_data, index=display_rows)
+                    st.table(final_df)
                 else:
                     st.write("No pitches found for this selection.")
             
