@@ -182,12 +182,38 @@ if game_pk and opponent_id:
                     df_zone = df_zone[df_zone['Order'] == map_order[order_view]]
 
                 fig = go.Figure()
+                
+                # --- DRAW THE 9-ZONE GRID ---
+                # Vertical Lines
+                for x in [-0.283, 0.283]:
+                    fig.add_shape(type="line", x0=x, y0=1.5, x1=x, y1=3.5, 
+                                  line=dict(color="rgba(255,255,255,0.3)", width=2))
+                # Horizontal Lines
+                for y in [2.166, 2.833]:
+                    fig.add_shape(type="line", x0=-0.85, y0=y, x1=0.85, y1=y, 
+                                  line=dict(color="rgba(255,255,255,0.3)", width=2))
+                
+                # Outer Strike Zone Box
+                fig.add_shape(type="rect", x0=-0.85, y0=1.5, x1=0.85, y1=3.5, 
+                              line=dict(color="White", width=4))
+
+                # Pitch Markers
                 for pt in df_zone['Type'].unique():
                     d = df_zone[df_zone['Type'] == pt]
-                    fig.add_trace(go.Scatter(x=d['X'], y=d['Z'], mode='markers', name=pt, marker=dict(size=14, color=get_color(pt), line=dict(width=1, color='Black'), opacity=0.8)))
+                    fig.add_trace(go.Scatter(
+                        x=d['X'], y=d['Z'], 
+                        mode='markers', 
+                        name=pt, 
+                        marker=dict(size=14, color=get_color(pt), line=dict(width=1, color='Black'), opacity=0.9)
+                    ))
                 
-                fig.add_shape(type="rect", x0=-0.85, y0=1.5, x1=0.85, y1=3.5, line=dict(color="White", width=4))
-                fig.update_layout(template="plotly_dark", yaxis=dict(scaleanchor="x", scaleratio=1, range=[0, 5], visible=False), xaxis=dict(range=[-2.5, 2.5], visible=False), height=500, margin=dict(l=0,r=0,t=0,b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                fig.update_layout(
+                    template="plotly_dark",
+                    yaxis=dict(scaleanchor="x", scaleratio=1, range=[0, 5], visible=False),
+                    xaxis=dict(range=[-2.5, 2.5], visible=False),
+                    height=550, margin=dict(l=0,r=0,t=0,b=0),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
         with tab2:
