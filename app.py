@@ -254,7 +254,7 @@ if game_pk and opponent_id:
                             return ''
 
                     st.table(final_df.style.apply(lambda x: [apply_heat_map(v, x.name, c) for v, c in zip(x, final_df.columns)], axis=1))
-
+        
         with tab2:
             st.write("### Sequence Matrix")
             seq_df = df_filtered[df_filtered['Prev'] != "None"]
