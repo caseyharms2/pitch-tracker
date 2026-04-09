@@ -208,12 +208,17 @@ if game_pk and opponent_id:
                     for count_row in display_rows:
                         row_display = {}
                         for pitch_col in sorted_pitch_cols:
-                            count_val = df_counts.loc[count_row, pitch_col]
-                            perc_val = df_perc.loc[count_row, pitch_col]
+                            # Get count value (default to 0 if missing)
+                            count_val = df_counts.loc[count_row, pitch_col] if pitch_col in df_counts.columns else 0
+        
+                            # Get percentage value safely from df_perc
+                            try:
+                                perc_val = df_perc.loc[count_row, pitch_col]
+                            except KeyError:
+                                perc_val = 0
+            
                             row_display[pitch_col] = f"{perc_val:.0f}% ({count_val})"
                         formatted_rows.append(row_display)
-
-                    final_df = pd.DataFrame(formatted_rows, index=display_rows)
 
                     # 4. HEAT MAP STYLING
                     def apply_heat_map(val, count_label, pitch_name):
