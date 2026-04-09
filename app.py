@@ -235,26 +235,30 @@ if game_pk and opponent_id:
                             row_display[pitch_col] = f"{perc_val:.0f}% ({count_val})"
                         formatted_rows.append(row_display)
 
-                    # 4. HEAT MAP STYLING
+                    # 4. CREATE DATAFRAME AND APPLY HEAT MAP
                     def apply_heat_map(val, row_name, col_name):
                         try:
-                            # We only want to highlight the 'Diff' column (difference from league average)
-                            if col_name == 'Diff':
-                                # Logic: Red for usage higher than average, Blue for lower
-                                if val > 0:
-                                    # Higher usage = Red
-                                    alpha = min(abs(val) * 2, 0.7) # Scales transparency
+                            # We target columns that contain percentage strings or specific headers
+                            if col_name == 'Diff' or "%" in str(val):
+                                # Extract numeric value if it's a string like "20% (10)"
+                                numeric_val = float(str(val).split('%')[0]) if "%" in str(val) else val
+                    
+                                if numeric_val > 0:
+                                    alpha = min(abs(numeric_val) / 100, 0.7)
                                     return f'background-color: rgba(255, 0, 0, {alpha})'
-                                elif val < 0:
-                                    # Lower usage = Blue
-                                    alpha = min(abs(val) * 2, 0.7)
+                                elif numeric_val < 0:
+                                    alpha = min(abs(numeric_val) / 100, 0.7)
                                     return f'background-color: rgba(0, 0, 255, {alpha})'
                             return ''
                         except:
                             return ''
 
+                    # Convert the list of dictionaries into a DataFrame
+                    final_df = pd.DataFrame(formatted_rows, index=display_rows)
+
+                    # Display the styled table
                     st.table(final_df.style.apply(lambda x: [apply_heat_map(v, x.name, c) for v, c in zip(x, final_df.columns)], axis=1))
-        
+
         with tab2:
             st.write("### Sequence Matrix")
             seq_df = df_filtered[df_filtered['Prev'] != "None"]
