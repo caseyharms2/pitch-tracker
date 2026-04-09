@@ -184,7 +184,7 @@ if game_pk and opponent_id:
                         "Total": {"FB": 52, "BR": 32, "OS": 16}
                     }
 
-                    def get_group(p_name):
+        def get_group(p_name):
                         p = p_name.lower()
                         if any(x in p for x in ["fastball", "sinker", "cutter"]): return "FB"
                         if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]): return "BR"
