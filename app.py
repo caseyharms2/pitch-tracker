@@ -32,6 +32,17 @@ PITCH_COLORS = {
 
 def get_color(pitch_type):
     return PITCH_COLORS.get(pitch_type, "gray")
+def apply_heat_map(val, column_name, target_column):
+    try:
+        # Check if the current column matches the target column for styling
+        if column_name == target_column:
+            # Simple logic: higher percentages get a darker background
+            # You can customize these colors/thresholds
+            bg_color = f'background-color: rgba(255, 0, 0, {val})' if val > 0 else ''
+            return bg_color
+        return ''
+    except:
+        return ''
 
 # --- STEP 1: SELECT TEAM AND DATE ---
 col1, col2 = st.columns(2)
