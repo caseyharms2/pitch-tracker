@@ -232,16 +232,22 @@ if game_pk and opponent_id:
                         formatted_rows.append(row_display)
 
                     # 4. HEAT MAP STYLING
-                    def apply_heat_map(val, count_label, pitch_name):
-                        if count_label == "Total": return 'background-color: #444; color: white; font-weight: bold;'
+                    def apply_heat_map(val, row_name, col_name):
                         try:
-                            actual_perc = float(val.split('%')[0])
-                            group = get_group(pitch_name)
-                            avg = benchmarks.get(count_label, {}).get(group, 0)
-                            if actual_perc > (avg + 7): return 'background-color: #8b0000; color: white;' 
-                            if actual_perc < (avg - 7): return 'background-color: #00008b; color: white;' 
-                        except: pass
-                        return 'color: white;'
+                            # We only want to highlight the 'Diff' column (difference from league average)
+                            if col_name == 'Diff':
+                                # Logic: Red for usage higher than average, Blue for lower
+                                if val > 0:
+                                    # Higher usage = Red
+                                    alpha = min(abs(val) * 2, 0.7) # Scales transparency
+                                    return f'background-color: rgba(255, 0, 0, {alpha})'
+                                elif val < 0:
+                                    # Lower usage = Blue
+                                    alpha = min(abs(val) * 2, 0.7)
+                                    return f'background-color: rgba(0, 0, 255, {alpha})'
+                            return ''
+                        except:
+                            return ''
 
                     st.table(final_df.style.apply(lambda x: [apply_heat_map(v, x.name, c) for v, c in zip(x, final_df.columns)], axis=1))
 
