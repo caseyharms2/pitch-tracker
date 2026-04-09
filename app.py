@@ -203,18 +203,20 @@ if game_pk and opponent_id:
                     display_rows = [c for c in valid_counts if c in df_counts.index]
                     if "Total" in df_counts.index: display_rows.append("Total")
 
-                    # 3. BUILD THE TABLE
-                    formatted_rows = []
-                    for count_row in display_rows:
-                        row_display = {}
-                        for pitch_col in sorted_pitch_cols:
-                            count_val = df_counts.loc[count_row, pitch_col]
-                            perc_val = df_perc.loc[count_row, pitch_col]
-                            row_display[pitch_col] = f"{perc_val:.0f}% ({count_val})"
-                        formatted_rows.append(row_display)
+                  # 3. BUILD THE TABLE
+formatted_rows = []
+for count_row in display_rows:
+    row_display = {}
+    for pitch_col in sorted_pitch_cols:
+        # Use .get() to safely handle missing rows/cols
+        # If the count or pitch doesn't exist, it defaults to 0
+        count_val = df_counts.get(pitch_col, {}).get(count_row, 0)
+        perc_val = df_perc.get(pitch_col, {}).get(count_row, 0)
+        
+        row_display[pitch_col] = f"{perc_val:.0f}% ({int(count_val)})"
+    formatted_rows.append(row_display)
 
-                    final_df = pd.DataFrame(formatted_rows, index=display_rows)
-
+final_df = pd.DataFrame(formatted_rows, index=display_rows)
                     # 4. HEAT MAP STYLING
                     def apply_heat_map(val, count_label, pitch_name):
                         if count_label == "Total": return 'background-color: #444; color: white; font-weight: bold;'
