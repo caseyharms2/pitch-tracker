@@ -5,6 +5,16 @@ import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 from datetime import datetime, timedelta
 
+def get_group(p_name):
+    p = p_name.lower()
+    if any(x in p for x in ["fastball", "sinker", "cutter"]):
+        return "FB"
+    if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]):
+        return "BR"
+    if any(x in p for x in ["changeup", "splitter", "forkball"]):
+        return "OS"
+    return "OTHER"
+    
 # Set page to wide for dugout tablet viewing
 st.set_page_config(layout="wide", page_title="Opposing Pitcher Tendencies")
 
@@ -181,15 +191,7 @@ if game_pk and opponent_id:
                         "2-1": {"FB": 62, "BR": 23, "OS": 15}, "3-1": {"FB": 84, "BR": 11, "OS": 5},
                         "0-2": {"FB": 38, "BR": 44, "OS": 18}, "1-2": {"FB": 40, "BR": 42, "OS": 18},
                         "2-2": {"FB": 44, "BR": 38, "OS": 18}, "3-2": {"FB": 55, "BR": 25, "OS": 20},
-                        "Total": {"FB": 52, "BR": 32, "OS": 16}
-                    }
-
-        def get_group(p_name):
-                        p = p_name.lower()
-                        if any(x in p for x in ["fastball", "sinker", "cutter"]): return "FB"
-                        if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]): return "BR"
-                        if any(x in p for x in ["changeup", "splitter", "forkball"]): return "OS"
-                        return "OTHER"
+                        "Total": {"FB": 52, "BR": 32, "OS": 16}}
 
                     # 2. CREATE FULL MATRIX (Ensures all 12 counts appear in order)
                     df_counts = pd.crosstab(df_filtered['Count'], df_filtered['Type'], margins=True, margins_name="Total")
