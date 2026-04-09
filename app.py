@@ -32,14 +32,18 @@ PITCH_COLORS = {
 
 def get_color(pitch_type):
     return PITCH_COLORS.get(pitch_type, "gray")
-def apply_heat_map(val, column_name, target_column):
+def apply_heat_map(val, row_name, col_name):
     try:
-        # Check if the current column matches the target column for styling
-        if column_name == target_column:
-            # Simple logic: higher percentages get a darker background
-            # You can customize these colors/thresholds
-            bg_color = f'background-color: rgba(255, 0, 0, {val})' if val > 0 else ''
-            return bg_color
+        # We target the 'Diff' column to highlight tendencies
+        if col_name == 'Diff':
+            if val > 0:
+                # Red for higher than average usage
+                alpha = min(abs(val) * 2, 0.7)
+                return f'background-color: rgba(255, 0, 0, {alpha})'
+            elif val < 0:
+                # Blue for lower than average usage
+                alpha = min(abs(val) * 2, 0.7)
+                return f'background-color: rgba(0, 0, 255, {alpha})'
         return ''
     except:
         return ''
