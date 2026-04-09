@@ -5,16 +5,6 @@ import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 from datetime import datetime, timedelta
 
-def get_group(p_name):
-    p = p_name.lower()
-    if any(x in p for x in ["fastball", "sinker", "cutter"]):
-        return "FB"
-    if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]):
-        return "BR"
-    if any(x in p for x in ["changeup", "splitter", "forkball"]):
-        return "OS"
-    return "OTHER"
-    
 # Set page to wide for dugout tablet viewing
 st.set_page_config(layout="wide", page_title="Opposing Pitcher Tendencies")
 
@@ -191,7 +181,15 @@ if game_pk and opponent_id:
                         "2-1": {"FB": 62, "BR": 23, "OS": 15}, "3-1": {"FB": 84, "BR": 11, "OS": 5},
                         "0-2": {"FB": 38, "BR": 44, "OS": 18}, "1-2": {"FB": 40, "BR": 42, "OS": 18},
                         "2-2": {"FB": 44, "BR": 38, "OS": 18}, "3-2": {"FB": 55, "BR": 25, "OS": 20},
-                        "Total": {"FB": 52, "BR": 32, "OS": 16}}
+                        "Total": {"FB": 52, "BR": 32, "OS": 16}
+                    }
+
+                    def get_group(p_name):
+                        p = p_name.lower()
+                        if any(x in p for x in ["fastball", "sinker", "cutter"]): return "FB"
+                        if any(x in p for x in ["slider", "curve", "sweeper", "slurve"]): return "BR"
+                        if any(x in p for x in ["changeup", "splitter", "forkball"]): return "OS"
+                        return "OTHER"
 
                     # 2. CREATE FULL MATRIX (Ensures all 12 counts appear in order)
                     df_counts = pd.crosstab(df_filtered['Count'], df_filtered['Type'], margins=True, margins_name="Total")
@@ -205,20 +203,18 @@ if game_pk and opponent_id:
                     display_rows = [c for c in valid_counts if c in df_counts.index]
                     if "Total" in df_counts.index: display_rows.append("Total")
 
-                  # 3. BUILD THE TABLE
+                    # 3. BUILD THE TABLE
                     formatted_rows = []
-                        for count_row in display_rows:
-                            row_display = {}
+                    for count_row in display_rows:
+                        row_display = {}
                         for pitch_col in sorted_pitch_cols:
-                    # Use .get() to safely handle missing rows/cols
-                    # If the count or pitch doesn't exist, it defaults to 0
-                    count_val = df_counts.get(pitch_col, {}).get(count_row, 0)
-                    perc_val = df_perc.get(pitch_col, {}).get(count_row, 0)
-        
-                    row_display[pitch_col] = f"{perc_val:.0f}% ({int(count_val)})"
-                    formatted_rows.append(row_display)
+                            count_val = df_counts.loc[count_row, pitch_col]
+                            perc_val = df_perc.loc[count_row, pitch_col]
+                            row_display[pitch_col] = f"{perc_val:.0f}% ({count_val})"
+                        formatted_rows.append(row_display)
 
                     final_df = pd.DataFrame(formatted_rows, index=display_rows)
+
                     # 4. HEAT MAP STYLING
                     def apply_heat_map(val, count_label, pitch_name):
                         if count_label == "Total": return 'background-color: #444; color: white; font-weight: bold;'
@@ -241,3 +237,5 @@ if game_pk and opponent_id:
             
             st.write("### Times Through Order Usage")
             st.table((pd.crosstab(df_filtered['Order'], df_filtered['Type'], normalize='index') * 100).style.format("{:.0f}%"))
+
+
