@@ -206,7 +206,7 @@ if game_pk and opponent_id:
                   # 3. BUILD THE TABLE
                     formatted_rows = []
                         for count_row in display_rows:
-                        row_display = {}
+                            row_display = {}
                         for pitch_col in sorted_pitch_cols:
                     # Use .get() to safely handle missing rows/cols
                     # If the count or pitch doesn't exist, it defaults to 0
